@@ -25,7 +25,7 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
 model = keras.Sequential(
   [
     keras.Input(shape=input_shape),
-    keras.layers.Conv2D(64, kernel_size=(3,3), activation='relu'),
+    keras.layers.Conv2D(8, kernel_size=(3,3), activation='relu'),
     keras.layers.MaxPooling2D(pool_size=(3,3)),
     keras.layers.Flatten(),
     keras.layers.Dense(num_classes, activation='softmax')

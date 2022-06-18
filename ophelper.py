@@ -21,8 +21,8 @@ def opFlatten(shape, out):
         output += out % (i, i) # basically copy
     case 2:
       for i,j in np.ndindex(shape):
-        output += out % (i, j, j + i * shape[0])
+        output += out % (j + i * shape[0], i, j)
     case 3:
       for i,j,k in np.ndindex(shape):
-        output += out % (i, j, k, k + j * shape[0] + i * shape[0] * shape[1])
+        output += out % (k + j * shape[0] + i * shape[0] * shape[1], i, j, k)
   return output
