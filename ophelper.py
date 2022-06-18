@@ -1,5 +1,5 @@
 import numpy as np
-def opCopy(shape, out1d, out2d, out3d):
+def opElementwise(shape, out1d=None, out2d=None, out3d=None):
   output = ''
   match len(shape):
     case 1:
