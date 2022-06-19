@@ -30,7 +30,7 @@ def opFlatten(shape, out):
 def opTranspose(shape, out):
   output = ''
   for i,j,k in np.ndindex(shape):
-    output += out % (i, j, k, j, k, i)
+    output += out % (j, k, i, i, j, k) # the order is (dest, source). I made this mistake and spent 2 hours on it, don't be like me
   return output
 
 def opExp(inval,outval):

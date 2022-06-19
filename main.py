@@ -50,11 +50,11 @@ for layer, node in enumerate(graph.node):
   if weight_count == 0:
     unweighted_layers += 1
   
-  
+  """
   print(layer)
   print(unweighted_layers)
   print(current_weights)
-  
+  """
   
   match node.op_type:
     case 'Reshape':
@@ -71,8 +71,8 @@ for layer, node in enumerate(graph.node):
       ea_factor = (np.floor(kernel_shape)/2).astype(int) # edge avoidance for padding='valid' in tf
       
       for fc in range(filter_count):
-        for ci in range(ea_factor[0],last_shape[0] - ea_factor[0]):
-          for cj in range(ea_factor[1],last_shape[1] - ea_factor[1]):
+        for ic,ci in enumerate(range(ea_factor[0],last_shape[0] - ea_factor[0])):
+          for jc,cj in enumerate(range(ea_factor[1],last_shape[1] - ea_factor[1])):
             output += 'scoreboard players set #conv_temp_1 nn_eval 0\n'
             for fi in range(-ea_factor[0], ea_factor[0] + 1):
               for fj in range(-ea_factor[1], ea_factor[1] + 1):
@@ -83,7 +83,7 @@ for layer, node in enumerate(graph.node):
                 output += 'scoreboard players operation #conv_temp_1 nn_eval += #conv_temp_0 nn_eval\n'
             output += 'scoreboard players set #bias_temp_0 nn_eval {bias}\n'.format(bias=int(current_weights[1][fc] * FPSF))
             output += 'scoreboard players operation #conv_temp_1 nn_eval += #bias_temp_0 nn_eval\n'
-            output += 'scoreboard players operation #l{cn}_{x}_{y}_{f} nn_eval = #conv_temp_1 nn_eval\n'.format(cn=layer,x=ci,y=cj,f=fc)
+            output += 'scoreboard players operation #l{cn}_{f}_{x}_{y} nn_eval = #conv_temp_1 nn_eval\n'.format(cn=layer,x=ic,y=jc,f=fc)
       
       last_shape = (last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1], filter_count)
       
@@ -92,11 +92,11 @@ for layer, node in enumerate(graph.node):
       output += default_layer(layer)
       match len(last_shape):
         case 1:
-          output += ophelper.opElementwise(last_shape, out1d = 'execute if score test #l{cn}_%d nn_eval matches ..0 run scoreboard players operation #l{cn}_%d nn_eval 0\n'.format(cn=layer))
+          output += ophelper.opElementwise(last_shape, out1d = 'execute if score #l{cn}_%d nn_eval matches ..0 run scoreboard players set #l{cn}_%d nn_eval 0\n'.format(cn=layer))
         case 2:
-          output += ophelper.opElementwise(last_shape, out2d = 'execute if score test #l{cn}_%d_%d nn_eval matches ..0 run scoreboard players operation #l{cn}_%d_%d nn_eval 0\n'.format(cn=layer))
+          output += ophelper.opElementwise(last_shape, out2d = 'execute if score #l{cn}_%d_%d nn_eval matches ..0 run scoreboard players set #l{cn}_%d_%d nn_eval 0\n'.format(cn=layer))
         case 3:
-          output += ophelper.opElementwise(last_shape, out3d = 'execute if score test #l{cn}_%d_%d_%d nn_eval matches ..0 run scoreboard players operation #l{cn}_%d_%d_%d nn_eval 0\n'.format(cn=layer,pn=layer-1))
+          output += ophelper.opElementwise(last_shape, out3d = 'execute if score #l{cn}_%d_%d_%d nn_eval matches ..0 run scoreboard players set #l{cn}_%d_%d_%d nn_eval 0\n'.format(cn=layer,pn=layer-1))
     case 'MaxPool':
       attributes = list(node.attribute)
       strides = list(attributes[0].ints)
@@ -109,10 +109,10 @@ for layer, node in enumerate(graph.node):
           for k in range(last_shape[2]):
             for ic, i in enumerate(range(rk_shape[0],last_shape[0]-rk_shape[0],strides[0])):
               for jc, j in enumerate(range(rk_shape[1],last_shape[1]-rk_shape[1],strides[1])):
-                output += 'scoreboard players set #l{cn}_{x}_{y}_{z} nn_eval -2147483648\n'.format(cn=layer,x=ic,y=jc,z=k)
+                output += 'scoreboard players set #l{cn}_{z}_{x}_{y} nn_eval -2147483648\n'.format(cn=layer,x=ic,y=jc,z=k)
                 for a in range(-rk_shape[0],rk_shape[1]+1):
                   for b in range(-rk_shape[1],rk_shape[1]+1):
-                    output += 'scoreboard players operation #l{cn}_{x}_{y}_{z} nn_eval > #l{pn}_{a}_{b}_{z} nn_eval\n'.format(cn=layer,pn=layer-1,x=ic,y=jc,z=k,a=i+a,b=j+b)
+                    output += 'scoreboard players operation #l{cn}_{z}_{x}_{y} nn_eval > #l{pn}_{z}_{a}_{b} nn_eval\n'.format(cn=layer,pn=layer-1,x=ic,y=jc,z=k,a=i+a,b=j+b)
                     
           last_shape = (last_shape[0]//strides[0],last_shape[1]//strides[1],last_shape[2])
     case 'Transpose': # convert from N,C,H,W to N,H,W,C
@@ -135,7 +135,7 @@ for layer, node in enumerate(graph.node):
         case 1:
           for i in range(last_shape[0]):
             output += 'scoreboard players set #add_temp_0 nn_eval %d\n' % (current_weights[0][i] * FPSF)
-            output += 'scoreboard players operation #l{cn}_{x} nn_eval += #add_temp_0 nn_eval\n'
+            output += 'scoreboard players operation #l{cn}_{x} nn_eval += #add_temp_0 nn_eval\n'.format(cn=layer,x=i)
     case 'Softmax':
       match len(last_shape):
         case 1:
