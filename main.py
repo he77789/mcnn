@@ -122,15 +122,15 @@ for layer, node in enumerate(graph.node):
       for i in range(output_length):
         output += 'scoreboard players set #l{cn}_{y} nn_eval 0\n'.format(cn=layer,y=i)
         for j in range(last_shape[0]):
-          output += 'scoreboard players set #weight_temp nn_eval {weight}\n'.format(weight=int(current_weights[0][j][i] * sqrtFPSF)) # * FPSF / sqrtFPSF and notice i and j are swapped
+          output += 'scoreboard players set #weight_temp_0 nn_eval {weight}\n'.format(weight=int(current_weights[0][j][i] * sqrtFPSF)) # * FPSF / sqrtFPSF and notice i and j are swapped
           output += 'scoreboard players operation #matmul_temp_0 nn_eval = #l{pn}_{x} nn_eval\n'.format(pn=layer-1,x=j)
           output += 'scoreboard players operation #matmul_temp_0 nn_eval /= #sqrtFPSF nn_eval\n'
-          output += 'scoreboard players operation #matmul_temp_0 nn_eval *= #weight_temp nn_eval\n'
+          output += 'scoreboard players operation #matmul_temp_0 nn_eval *= #weight_temp_0 nn_eval\n'
           output += 'scoreboard players operation #l{cn}_{y} nn_eval += #matmul_temp_0 nn_eval\n'.format(cn=layer,y=i)
       last_shape = (output_length,)
           
     case 'Add':
-      output += default_layer(layer)
+      output += default_layer(layer) # copy
       match len(last_shape):
         case 1:
           for i in range(last_shape[0]):
@@ -143,7 +143,9 @@ for layer, node in enumerate(graph.node):
           for i in range(last_shape[0]):
             output += ophelper.opExp('#l{pn}_{x}'.format(pn=layer-1,x=i), '#l{cn}_{x}'.format(cn=layer,x=i))
             output += 'scoreboard players operation #softmax_temp_0 nn_eval += #l{cn}_{x} nn_eval\n'.format(cn=layer,x=i)
+          output += 'scoreboard players operation #softmax_temp_0 nn_eval /= #sqrtFPSF nn_eval\n'
           for i in range(last_shape[0]):
+            output += 'scoreboard players operation #l{cn}_{x} nn_eval *= #sqrtFPSF nn_eval\n'.format(cn=layer,x=i)
             output += 'scoreboard players operation #l{cn}_{x} nn_eval /= #softmax_temp_0 nn_eval\n'.format(cn=layer,x=i)
         case 2:
           warnings.warn('2D softmax is currently not supported, skipping layer')
