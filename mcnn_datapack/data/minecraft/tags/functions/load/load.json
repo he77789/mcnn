@@ -1,5 +1,5 @@
 {
-  "values": {
-    "nn_0001:nnInit"
-  }
+  "values": [
+    "nn_0001:nninit"
+  ]
 }

@@ -92,11 +92,11 @@ for layer, node in enumerate(graph.node):
       output += default_layer(layer)
       match len(last_shape):
         case 1:
-          output += ophelper.opElementwise(last_shape, out1d = 'execute if score test #l{cn}_%d matches ..0 run scoreboard players operation #l{cn}_%d nn_eval 0\n'.format(cn=layer))
+          output += ophelper.opElementwise(last_shape, out1d = 'execute if score test #l{cn}_%d nn_eval matches ..0 run scoreboard players operation #l{cn}_%d nn_eval 0\n'.format(cn=layer))
         case 2:
-          output += ophelper.opElementwise(last_shape, out2d = 'execute if score test #l{cn}_%d_%d matches ..0 run scoreboard players operation #l{cn}_%d_%d nn_eval 0\n'.format(cn=layer))
+          output += ophelper.opElementwise(last_shape, out2d = 'execute if score test #l{cn}_%d_%d nn_eval matches ..0 run scoreboard players operation #l{cn}_%d_%d nn_eval 0\n'.format(cn=layer))
         case 3:
-          output += ophelper.opElementwise(last_shape, out3d = 'execute if score test #l{cn}_%d_%d_%d matches ..0 run scoreboard players operation #l{cn}_%d_%d_%d nn_eval 0\n'.format(cn=layer,pn=layer-1))
+          output += ophelper.opElementwise(last_shape, out3d = 'execute if score test #l{cn}_%d_%d_%d nn_eval matches ..0 run scoreboard players operation #l{cn}_%d_%d_%d nn_eval 0\n'.format(cn=layer,pn=layer-1))
     case 'MaxPool':
       attributes = list(node.attribute)
       strides = list(attributes[0].ints)
@@ -153,7 +153,7 @@ for layer, node in enumerate(graph.node):
       warnings.warn(str(node.op_type) + ' is currently not supported, skipping layer')
   output += '\n'
 
-with open('nnOutput.mcfunction', 'w') as f:
+with open('nnoutput.mcfunction', 'w') as f:
   f.write(output)
 
 # generate init file
@@ -161,5 +161,5 @@ output = 'scoreboard objectives add nn_eval dummy "NN internals"\ngamerule maxCo
 for i,j in np.ndindex(input_shape):
   output += 'scoreboard players set #l0_{x}_{y} nn_eval 0\n'.format(x=i,y=j)
 
-with open('nnInit.mcfunction', 'w') as f:
+with open('nninit.mcfunction', 'w') as f:
   f.write(output)
