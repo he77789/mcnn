@@ -1,0 +1,6 @@
+{
+  "pack": {
+    "pack_format": 10,
+    "description": "CNN in Minecraft trained on MNIST dataset"
+  }
+}

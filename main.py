@@ -155,3 +155,11 @@ for layer, node in enumerate(graph.node):
 
 with open('nnOutput.mcfunction', 'w') as f:
   f.write(output)
+
+# generate init file
+output = 'scoreboard objectives add nn_eval dummy "NN internals"\ngamerule maxCommandChainLength 2147483647\n\n'
+for i,j in np.ndindex(input_shape):
+  output += 'scoreboard players set #l0_{x}_{y} nn_eval 0\n'.format(x=i,y=j)
+
+with open('nnInit.mcfunction', 'w') as f:
+  f.write(output)
