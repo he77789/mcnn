@@ -85,7 +85,7 @@ for layer, node in enumerate(graph.node):
             output += 'scoreboard players operation #conv_temp_1 nn_eval += #bias_temp_0 nn_eval\n'
             output += 'scoreboard players operation #l{cn}_{f}_{x}_{y} nn_eval = #conv_temp_1 nn_eval\n'.format(cn=layer,x=ic,y=jc,f=fc)
       
-      last_shape = (last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1], filter_count)
+      last_shape = (filter_count, last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1])
       
     case 'Relu':
       # copy and zero out if negative; conditional copy + zero out uncopied values also take 2 commands but takes 2 checks instead of one
@@ -114,7 +114,7 @@ for layer, node in enumerate(graph.node):
                   for b in range(-rk_shape[1],rk_shape[1]+1):
                     output += 'scoreboard players operation #l{cn}_{z}_{x}_{y} nn_eval > #l{pn}_{z}_{a}_{b} nn_eval\n'.format(cn=layer,pn=layer-1,x=ic,y=jc,z=k,a=i+a,b=j+b)
                     
-          last_shape = (last_shape[0]//strides[0],last_shape[1]//strides[1],last_shape[2])
+          last_shape = (last_shape[0],last_shape[1]//strides[0],last_shape[2]//strides[1])
     case 'Transpose': # convert from N,C,H,W to N,H,W,C
       output += ophelper.opTranspose(last_shape,'scoreboard players operation #l{cn}_%d_%d_%d nn_eval = #l{pn}_%d_%d_%d nn_eval\n'.format(cn=layer,pn=layer-1))
     case 'MatMul': # 1D input
