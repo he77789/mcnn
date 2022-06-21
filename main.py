@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Q3.28 format is used in the output
+Q13.18 format is used in the output
 """
-FPSF = 2**28 # fixed point scale factor
-sqrtFPSF = 2**14 # useful in multiplication and division
+FPSF = 2**18 # fixed point scale factor
+sqrtFPSF = 2**9 # useful in multiplication and division
 
 import warnings
 import numpy as np
@@ -23,10 +23,7 @@ input_shape = tuple(weights[-2][2:])
 weights = weights[:-2]
 weight_order = [2,4,3] # note: they will be multiplied by -1
 
-output = "scoreboard players set #sqrtFPSF nn_eval %d\n" % sqrtFPSF
-
-# for exp
-output += 'scoreboard players set #TWO nn_eval 2\n'
+output = ''
 
 default_layer = lambda l:ophelper.opElementwise(last_shape, 'scoreboard players operation #l{cn}_%d nn_eval = #l{pn}_%d nn_eval\n'.format(cn=l,pn=l-1), 'scoreboard players operation #l{cn}_%d_%d nn_eval = #l{pn}_%d_%d nn_eval\n'.format(cn=l,pn=l-1), 'scoreboard players operation #l{cn}_%d_%d_%d nn_eval = #l{pn}_%d_%d_%d nn_eval\n'.format(cn=l,pn=l-1)) # copy
 
@@ -80,12 +77,12 @@ for layer, node in enumerate(graph.node):
                 output += 'scoreboard players operation #conv_temp_0 nn_eval = #l{pn}_{x}_{y} nn_eval\n'.format(pn=layer-1,x=ci+fi,y=cj+fj)
                 output += 'scoreboard players operation #conv_temp_0 nn_eval /= #sqrtFPSF nn_eval\n'
                 output += 'scoreboard players operation #conv_temp_0 nn_eval *= #weight_temp_0 nn_eval\n'
-                output += 'scoreboard players operation #conv_temp_1 nn_eval += #conv_temp_0 nn_eval\n'
+                output += 'scoreboard players operation #l{cn}_{f}_{x}_{y} nn_eval += #conv_temp_0 nn_eval\n'.format(cn=layer,x=ic,y=jc,f=fc)
             output += 'scoreboard players set #bias_temp_0 nn_eval {bias}\n'.format(bias=int(current_weights[1][fc] * FPSF))
-            output += 'scoreboard players operation #conv_temp_1 nn_eval += #bias_temp_0 nn_eval\n'
-            output += 'scoreboard players operation #l{cn}_{f}_{x}_{y} nn_eval = #conv_temp_1 nn_eval\n'.format(cn=layer,x=ic,y=jc,f=fc)
+            output += 'scoreboard players operation #l{cn}_{f}_{x}_{y} nn_eval += #bias_temp_0 nn_eval\n'.format(cn=layer,x=ic,y=jc,f=fc)
+            
       
-      last_shape = (last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1], filter_count)
+      last_shape = (filter_count, last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1])
       
     case 'Relu':
       # copy and zero out if negative; conditional copy + zero out uncopied values also take 2 commands but takes 2 checks instead of one
@@ -114,8 +111,9 @@ for layer, node in enumerate(graph.node):
                   for b in range(-rk_shape[1],rk_shape[1]+1):
                     output += 'scoreboard players operation #l{cn}_{z}_{x}_{y} nn_eval > #l{pn}_{z}_{a}_{b} nn_eval\n'.format(cn=layer,pn=layer-1,x=ic,y=jc,z=k,a=i+a,b=j+b)
                     
-          last_shape = (last_shape[0]//strides[0],last_shape[1]//strides[1],last_shape[2])
+          last_shape = (last_shape[0],last_shape[1]//strides[0],last_shape[2]//strides[1])
     case 'Transpose': # convert from N,C,H,W to N,H,W,C
+      #output += default_layer(layer)
       output += ophelper.opTranspose(last_shape,'scoreboard players operation #l{cn}_%d_%d_%d nn_eval = #l{pn}_%d_%d_%d nn_eval\n'.format(cn=layer,pn=layer-1))
     case 'MatMul': # 1D input
       output_length = len(current_weights[0][0])
@@ -160,8 +158,17 @@ with open('nnoutput.mcfunction', 'w') as f:
 
 # generate init file
 output = 'scoreboard objectives add nn_eval dummy "NN internals"\ngamerule maxCommandChainLength 2147483647\n\n'
+# for multiplication/division
+output += "scoreboard players set #sqrtFPSF nn_eval %d\n" % sqrtFPSF
+# for exp
+output += 'scoreboard players set #TWO nn_eval 2\n'
+output = 'scoreboard players set exp_test nn_eval 110282\n' # 0.42069 for testing
 for i,j in np.ndindex(input_shape):
-  output += 'scoreboard players set #l0_{x}_{y} nn_eval 0\n'.format(x=i,y=j)
+  output += 'scoreboard players set #l0_{x}_{y} nn_eval 26214\n'.format(x=i,y=j) # 0.1 for testing
 
 with open('nninit.mcfunction', 'w') as f:
+  f.write(output)
+
+output = ophelper.opExp('exp_test', 'exp_test_result')
+with open('nnftest.mcfunction', 'w') as f:
   f.write(output)
