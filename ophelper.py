@@ -1,4 +1,18 @@
 import numpy as np
+
+def numConvert(x):
+  pol = 1 if x >= 0 else -1
+  x = float(abs(x))
+  dec = 0
+  while not x.is_integer():
+    if dec >= 32: # truncate if it's too long
+      break
+    dec += 1
+    x *= 10
+  num = str(list(str(int(x)))).replace(' ','') # looks weird, but converts it to a list of digits, e.g. 1023 turns into "['1','0','2','3']"
+  return '{dec:%d,num:%s,pol=%d,base:10}' % (dec,num,pol)
+  
+  
 def opElementwise(shape, out1d=None, out2d=None, out3d=None):
   output = ''
   match len(shape):
@@ -60,3 +74,10 @@ def opExp(inval,outval):
   output += 'scoreboard players operation {outval} nn_eval /= #exp_temp_0 nn_eval\n'.format(outval=outval)
   
   return output
+
+if __name__ == '__main__':
+  print('Running self tests:')
+  print('numConvert(3.14159265358979):' + numConvert(3.14159265358979))
+  print('numConvert(-123.456789):' + numConvert(-123.456789))
+  print('numConvert(-0):' + numConvert(-0))
+  print('numConvert(69**69):' + numConvert(69**69)

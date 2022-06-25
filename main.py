@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-Q3.28 format is used in the output
-"""
-FPSF = 2**28 # fixed point scale factor
-sqrtFPSF = 2**14 # useful in multiplication and division
-
 import warnings
 import numpy as np
 import onnx
@@ -23,12 +17,7 @@ input_shape = tuple(weights[-2][2:])
 weights = weights[:-2]
 weight_order = [2,4,3] # note: they will be multiplied by -1
 
-output = "scoreboard players set #sqrtFPSF nn_eval %d\n" % sqrtFPSF
-
-# for exp
-output += 'scoreboard players set #TWO nn_eval 2\n'
-
-default_layer = lambda l:ophelper.opElementwise(last_shape, 'scoreboard players operation #l{cn}_%d nn_eval = #l{pn}_%d nn_eval\n'.format(cn=l,pn=l-1), 'scoreboard players operation #l{cn}_%d_%d nn_eval = #l{pn}_%d_%d nn_eval\n'.format(cn=l,pn=l-1), 'scoreboard players operation #l{cn}_%d_%d_%d nn_eval = #l{pn}_%d_%d_%d nn_eval\n'.format(cn=l,pn=l-1)) # copy
+default_layer = lambda l:ophelper.opElementwise(last_shape, 'data modify storage nn_eval l{cn}_%d set from nn_eval l{pn}_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_eval l{cn}_%d_%d set from nn_eval l{pn}_%d_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_eval l{cn}_%d_%d_%d set from nn_eval l{pn}_%d_%d_%d\n'.format(cn=l,pn=l-1)) # copy
 
 keys = ['image']
 unweighted_layers = 0
@@ -59,33 +48,36 @@ for layer, node in enumerate(graph.node):
   match node.op_type:
     case 'Reshape':
       if flatten:
-        output += ophelper.opFlatten(last_shape, 'scoreboard players operation #l{cn}_%d nn_eval = #l{pn}_%d_%d_%d nn_eval\n'.format(cn=layer,pn=layer-1))
+        output += ophelper.opFlatten(last_shape, 'data modify storage nn_eval l{cn}_%d set from l{pn}_%d_%d_%d nn_eval\n'.format(cn=layer,pn=layer-1))
         last_shape = (np.prod(last_shape),)
-    case 'Conv': # assumed 2D for now, who uses Conv1D for images anyways
-      attributes = list(node.attribute)
-      dilations = list(attributes[0].ints)
-      strides = list(attributes[1].ints)
-      kernel_shape = list(attributes[2].ints)
-      filter_count = len(current_weights[1]) # length of list of biases
-      
-      ea_factor = (np.floor(kernel_shape)/2).astype(int) # edge avoidance for padding='valid' in tf
-      
-      for fc in range(filter_count):
-        for ic,ci in enumerate(range(ea_factor[0],last_shape[0] - ea_factor[0])):
-          for jc,cj in enumerate(range(ea_factor[1],last_shape[1] - ea_factor[1])):
-            output += 'scoreboard players set #conv_temp_1 nn_eval 0\n'
-            for fi in range(-ea_factor[0], ea_factor[0] + 1):
-              for fj in range(-ea_factor[1], ea_factor[1] + 1):
-                output += 'scoreboard players set #weight_temp_0 nn_eval {weight}\n'.format(weight=int(current_weights[0][fc][0][fi][fj] * sqrtFPSF)) # * FPSF / sqrtFPSF
-                output += 'scoreboard players operation #conv_temp_0 nn_eval = #l{pn}_{x}_{y} nn_eval\n'.format(pn=layer-1,x=ci+fi,y=cj+fj)
-                output += 'scoreboard players operation #conv_temp_0 nn_eval /= #sqrtFPSF nn_eval\n'
-                output += 'scoreboard players operation #conv_temp_0 nn_eval *= #weight_temp_0 nn_eval\n'
-                output += 'scoreboard players operation #conv_temp_1 nn_eval += #conv_temp_0 nn_eval\n'
-            output += 'scoreboard players set #bias_temp_0 nn_eval {bias}\n'.format(bias=int(current_weights[1][fc] * FPSF))
-            output += 'scoreboard players operation #conv_temp_1 nn_eval += #bias_temp_0 nn_eval\n'
-            output += 'scoreboard players operation #l{cn}_{f}_{x}_{y} nn_eval = #conv_temp_1 nn_eval\n'.format(cn=layer,x=ic,y=jc,f=fc)
-      
-      last_shape = (filter_count, last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1])
+    case 'Conv':
+      match len(last_shape):
+        case 2:
+          attributes = list(node.attribute)
+          dilations = list(attributes[0].ints)
+          strides = list(attributes[1].ints)
+          kernel_shape = list(attributes[2].ints)
+          filter_count = len(current_weights[1]) # length of list of biases
+          
+          ea_factor = (np.floor(kernel_shape)/2).astype(int) # edge avoidance for padding='valid' in tf
+          
+          for fc in range(filter_count):
+            for ic,ci in enumerate(range(ea_factor[0],last_shape[0] - ea_factor[0])):
+              for jc,cj in enumerate(range(ea_factor[1],last_shape[1] - ea_factor[1])):
+                output += 'data modify storage nn_eval conv_temp_1 set value {dec:0,num:[0],pol:1,base:10}\n'
+                for fi in range(-ea_factor[0], ea_factor[0] + 1):
+                  for fj in range(-ea_factor[1], ea_factor[1] + 1):
+                    output += 'data modify storage arr_math:in var2 set value {weight}\n'.format(weight=ophelper.numConvert(current_weights[0][fc][0][fi][fj]))
+                    output += 'data modify storage arr_math:in var1 set from storage nn_eval l{pn}_{x}_{y}\n'.format(pn=layer-1,x=ci+fi,y=cj+fj)
+                    output += 'function arr_math:call/multiply\n'
+                    output += 'data modify storage arr_math:in var1 set from storage arr_math:main out\n'
+                output += 'scoreboard players set #bias_temp_0 nn_eval {bias}\n'.format(bias=int(current_weights[1][fc] * FPSF))
+                output += 'scoreboard players operation #conv_temp_1 nn_eval += #bias_temp_0 nn_eval\n'
+                output += 'scoreboard players operation #l{cn}_{f}_{x}_{y} nn_eval = #conv_temp_1 nn_eval\n'.format(cn=layer,x=ic,y=jc,f=fc)
+          
+          last_shape = (filter_count, last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1])
+        case 1:
+          raise NotImplementedError('Conv1D not implemented, failing due to likely failure of output')
       
     case 'Relu':
       # copy and zero out if negative; conditional copy + zero out uncopied values also take 2 commands but takes 2 checks instead of one
@@ -159,9 +151,11 @@ with open('nnoutput.mcfunction', 'w') as f:
   f.write(output)
 
 # generate init file
-output = 'scoreboard objectives add nn_eval dummy "NN internals"\ngamerule maxCommandChainLength 2147483647\n\n'
+output = 'function arr_math:setup\n'
+output += 'gamerule maxCommandChainLength 2147483647\n'
+output += 'scoreboard players set mdp= arr_main.main 20\n'
 for i,j in np.ndindex(input_shape):
-  output += 'scoreboard players set #l0_{x}_{y} nn_eval 0\n'.format(x=i,y=j)
+  output += 'data modify storage nn_eval l0_{x}_{y} set value {dec:0,num:[0],pol=-1,base=10}\n'.format(x=i,y=j)
 
 with open('nninit.mcfunction', 'w') as f:
   f.write(output)
