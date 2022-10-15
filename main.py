@@ -9,6 +9,8 @@ import ophelper
 model = onnx.load('models/mnist_output_model.onnx')
 graph = model.graph
 
+outputs = []
+
 weights = []
 for tensor in graph.initializer:
   weights.append(numpy_helper.to_array(tensor))
@@ -17,12 +19,13 @@ input_shape = tuple(weights[-2][2:])
 weights = weights[:-2]
 weight_order = [2,4,3] # note: they will be multiplied by -1
 
-default_layer = lambda l:ophelper.opElementwise(last_shape, 'data modify storage nn_0001:nn_eval l{cn}_%d set from nn_0001:nn_eval l{pn}_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_0001:nn_eval l{cn}_%d_%d set from nn_0001:nn_eval l{pn}_%d_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_0001:nn_eval l{cn}_%d_%d_%d set from nn_0001:nn_eval l{pn}_%d_%d_%d\n'.format(cn=l,pn=l-1)) # copy
+default_layer = lambda l:ophelper.opElementwise(last_shape, 'data modify storage nn_0001:nn_eval l{cn}_%d set from storage nn_0001:nn_eval l{pn}_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_0001:nn_eval l{cn}_%d_%d set from storage nn_0001:nn_eval l{pn}_%d_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_0001:nn_eval l{cn}_%d_%d_%d set from storage nn_0001:nn_eval l{pn}_%d_%d_%d\n'.format(cn=l,pn=l-1)) # copy
 
 keys = ['image']
 unweighted_layers = 0
 last_shape = input_shape
 for layer, node in enumerate(graph.node):
+  output = "# generated with he77789's mcnn tool\n"
   print(last_shape)
   weight_count = 0
   current_weights = []
@@ -48,9 +51,10 @@ for layer, node in enumerate(graph.node):
   match node.op_type:
     case 'Reshape':
       if flatten:
-        output += ophelper.opFlatten(last_shape, 'data modify storage nn_0001:nn_eval l{cn}_%d set from l{pn}_%d_%d_%d nn_0001:nn_eval\n'.format(cn=layer,pn=layer-1))
+        output += ophelper.opFlatten(last_shape, 'data modify storage nn_0001:nn_eval l{cn}_%d set from storage l{pn}_%d_%d_%d nn_0001:nn_eval\n'.format(cn=layer,pn=layer-1))
         last_shape = (np.prod(last_shape),)
-        
+    
+    # very heavy layer: it will split itself into one function per filter
     case 'Conv':
       match len(last_shape):
         case 2:
@@ -73,15 +77,17 @@ for layer, node in enumerate(graph.node):
                     output += 'data modify storage arr_math:in var1 set from storage nn_0001:nn_eval l{pn}_{x}_{y}\n'.format(pn=layer-1,x=ci+fi,y=cj+fj)
                     output += 'function arr_math:call/multiply\n'
                     output += 'data modify storage arr_math:in var1 set from storage arr_math:main out\n'
-                    output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval l{cn}_{f}_{x}_{y}\n'
+                    output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval l{cn}_{f}_{x}_{y}\n'.format(cn=layer,x=ic,y=jc,f=fc)
                     output += 'function arr_math:call/add\n'
                     output += 'data modify storage nn_0001:nn_eval l{cn}_{f}_{x}_{y} set from storage arr_math:main out\n'.format(cn=layer,x=ic,y=jc,f=fc)
                     
-                output += 'data modify storage arr_main:in var1 set value {bias}\n'.format(bias=ophelper.numConvert(current_weights[1][fc])
+                output += 'data modify storage arr_main:in var1 set value {bias}\n'.format(bias=ophelper.numConvert(current_weights[1][fc]))
                 output += 'data modify storage arr_main:in var2 set from storage nn_0001:nn_eval l{cn}_{f}_{x}_{y}\n'.format(cn=layer,x=ic,y=jc,f=fc)
                 output += 'function arr_math:call/add\n'
                 output += 'data modify storage nn_0001:nn_eval l{cn}_{f}_{x}_{y} set from storage arr_main:main out\n'.format(cn=layer,x=ic,y=jc,f=fc)
-          
+            outputs.append(output)
+            output = "# generated with he77789's mcnn tool\n"
+
           last_shape = (filter_count, last_shape[0] - 2*ea_factor[0],last_shape[1] - 2*ea_factor[1])
         case 1:
           raise NotImplementedError('Conv1D not implemented, failing due to likely failure of output')
@@ -110,7 +116,7 @@ for layer, node in enumerate(graph.node):
           for k in range(last_shape[2]):
             for ic, i in enumerate(range(rk_shape[0],last_shape[0]-rk_shape[0],strides[0])):
               for jc, j in enumerate(range(rk_shape[1],last_shape[1]-rk_shape[1],strides[1])):
-                output += 'data modify storage nn_0001:nn_eval l{cn}_{z}_{x}_{y} set value {{dec:100,num:[1],pol:-1,base:10}}\n'.format(cn=layer,x=ic,y=jc,z=k) # -1e100 used as smallest value, we got worse problems if we got values smaller than that
+                output += 'data modify storage nn_0001:nn_eval l{cn}_{z}_{x}_{y} set value {{dec:100,num:[1],pol:-1,base:10}}\n'.format(cn=layer,x=ic,y=jc,z=k) # -1e100 used as smallest value, we got worse problems if we have values smaller than that
                 
                 for a in range(-rk_shape[0],rk_shape[1]+1):
                   for b in range(-rk_shape[1],rk_shape[1]+1):
@@ -128,7 +134,7 @@ for layer, node in enumerate(graph.node):
     case 'MatMul': # 1D input
       output_length = len(current_weights[0][0])
       for i in range(output_length):
-        output += 'scoreboard players set #l{cn}_{y} nn_0001:nn_eval 0\n'.format(cn=layer,y=i)
+        output += 'data modify storage nn_0001:nn_eval l{cn}_{y} set value {{dec:0,num:[0],pol:1,base:10}}\n'.format(cn=layer,y=i)
         for j in range(last_shape[0]):
           output += 'data modify storage arr_math:in var1 set value {weight}\n'.format(weight=ophelper.numConvert(current_weights[0][j][i])) # notice i and j are swapped
           output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval #l{pn}_{x}\n'.format(pn=layer-1,x=j)
@@ -136,7 +142,7 @@ for layer, node in enumerate(graph.node):
           output += 'data modify storage arr_math:in var1 set from storage nn_0001:nn_eval l{cn}_{y}\n'.format(cn=layer,y=i)
           output += 'data modify storage arr_math:in var2 set from storage arr_math:main out\n'
           output += 'function arr_math:call/add\n'
-          output += 'data modify storage nn_0001:nn_eval l{cn}_{y} set from arr_math:main out\n'.format(cn=layer,y=i)
+          output += 'data modify storage nn_0001:nn_eval l{cn}_{y} set from storage arr_math:main out\n'.format(cn=layer,y=i)
       last_shape = (output_length,)
           
     case 'Add':
@@ -146,22 +152,28 @@ for layer, node in enumerate(graph.node):
             output += 'data modify storage arr_math:in var1 set value %s\n' % (ophelper.numConvert(current_weights[0][i]))
             output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval l{pn}_{i}\n'.format(pn=layer-1,i=i)
             output += 'function arr_math:call/add\n'
-            output += 'data modify nn_0001:nn_eval l{cn}_{i} set from storage arr_math:main out\n'.format(cn=layer,i=i)
+            output += 'data modify storage nn_0001:nn_eval l{cn}_{i} set from storage arr_math:main out\n'.format(cn=layer,i=i)
         case 2:
           warnings.warn('2D add is not supported, skipping layer')
           
     case 'Softmax':
       match len(last_shape):
         case 1:
-          output += 'scoreboard players set #softmax_temp_0 nn_0001:nn_eval 0\n'
+          output += 'data modify storage nn_0001:nn_eval softmax_temp_0 set value {dec:0,num:[0],pol:1,base:10}\n'
           
           for i in range(last_shape[0]):
-            output += ophelper.opExp('#l{pn}_{x}'.format(pn=layer-1,x=i), '#l{cn}_{x}'.format(cn=layer,x=i))
-            output += 'scoreboard players operation #softmax_temp_0 nn_0001:nn_eval += #l{cn}_{x} nn_0001:nn_eval\n'.format(cn=layer,x=i)
-          output += 'scoreboard players operation #softmax_temp_0 nn_0001:nn_eval /= #sqrtFPSF nn_0001:nn_eval\n'
+            output += ophelper.opExp('l{pn}_{x}'.format(pn=layer-1,x=i), 'l{cn}_{x}'.format(cn=layer,x=i))
+            output += 'data modify storage arr_math:in var1 set from storage nn_0001:nn_eval l{cn}_{x}\n'.format(cn=layer,x=i)
+            output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval softmax_temp_0\n'
+            output += 'function arr_math:call/add\n'
+            output += 'data modify storage nn_0001:nn_eval softmax_temp_0 set from storage arr_math:main out\n'
+          
+          output += 'data modify storage arr_math:main var2 set from storage nn_0001:nn_eval softmax_temp_0\n'
           for i in range(last_shape[0]):
-            output += 'scoreboard players operation #l{cn}_{x} nn_0001:nn_eval *= #sqrtFPSF nn_0001:nn_eval\n'.format(cn=layer,x=i)
-            output += 'scoreboard players operation #l{cn}_{x} nn_0001:nn_eval /= #softmax_temp_0 nn_0001:nn_eval\n'.format(cn=layer,x=i)
+            output += 'data modify storage arr_math:main var1 set from storage nn_0001:nn_eval l{cn}_{x}\n'.format(cn=layer,x=i)
+            output += 'function arr_math:call/divide\n'
+            output += 'data modify storage nn_0001:nn_eval l{cn}_{x} set from storage arr_math:main out\n'.format(cn=layer,x=i)
+         
         case 2:
           warnings.warn('2D softmax is currently not supported, skipping layer')
           output += default_layer(layer)
@@ -169,17 +181,18 @@ for layer, node in enumerate(graph.node):
     case _:
       output += default_layer(layer)
       warnings.warn(str(node.op_type) + ' is currently not supported, skipping layer')
-  output += '\n'
+  outputs.append(output)
 
-with open('nnoutput.mcfunction', 'w') as f:
-  f.write(output)
+for i,layer_output in enumerate(outputs):
+  with open('nnoutput_{i}.mcfunction'.format(i=i), 'w') as f:
+    f.write(layer_output)
 
 # generate init file
 output = 'function arr_math:setup\n'
 output += 'gamerule maxCommandChainLength 2147483647\n'
 output += 'scoreboard players set mdp= arr_main.main 20\n'
 for i,j in np.ndindex(input_shape):
-  output += 'data modify storage nn_0001:nn_eval l0_{x}_{y} set value {dec:0,num:[0],pol=-1,base=10}\n'.format(x=i,y=j)
+  output += 'data modify storage nn_0001:nn_eval l0_{x}_{y} set value {{dec:0,num:[0],pol:-1,base:10}}\n'.format(x=i,y=j)
 
 with open('nninit.mcfunction', 'w') as f:
   f.write(output)
