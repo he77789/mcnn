@@ -81,10 +81,10 @@ for layer, node in enumerate(graph.node):
                     output += 'function arr_math:call/add\n'
                     output += 'data modify storage nn_0001:nn_eval l{cn}_{f}_{x}_{y} set from storage arr_math:main out\n'.format(cn=layer,x=ic,y=jc,f=fc)
                     
-                output += 'data modify storage arr_main:in var1 set value {bias}\n'.format(bias=ophelper.numConvert(current_weights[1][fc]))
-                output += 'data modify storage arr_main:in var2 set from storage nn_0001:nn_eval l{cn}_{f}_{x}_{y}\n'.format(cn=layer,x=ic,y=jc,f=fc)
+                output += 'data modify storage arr_math:in var1 set value {bias}\n'.format(bias=ophelper.numConvert(current_weights[1][fc]))
+                output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval l{cn}_{f}_{x}_{y}\n'.format(cn=layer,x=ic,y=jc,f=fc)
                 output += 'function arr_math:call/add\n'
-                output += 'data modify storage nn_0001:nn_eval l{cn}_{f}_{x}_{y} set from storage arr_main:main out\n'.format(cn=layer,x=ic,y=jc,f=fc)
+                output += 'data modify storage nn_0001:nn_eval l{cn}_{f}_{x}_{y} set from storage arr_math:main out\n'.format(cn=layer,x=ic,y=jc,f=fc)
             outputs.append(output)
             output = "# generated with he77789's mcnn tool\n"
 
