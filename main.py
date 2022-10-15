@@ -137,7 +137,7 @@ for layer, node in enumerate(graph.node):
         output += 'data modify storage nn_0001:nn_eval l{cn}_{y} set value {{dec:0,num:[0],pol:1,base:10}}\n'.format(cn=layer,y=i)
         for j in range(last_shape[0]):
           output += 'data modify storage arr_math:in var1 set value {weight}\n'.format(weight=ophelper.numConvert(current_weights[0][j][i])) # notice i and j are swapped
-          output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval #l{pn}_{x}\n'.format(pn=layer-1,x=j)
+          output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval l{pn}_{x}\n'.format(pn=layer-1,x=j)
           output += 'function arr_math:call/multiply\n'
           output += 'data modify storage arr_math:in var1 set from storage nn_0001:nn_eval l{cn}_{y}\n'.format(cn=layer,y=i)
           output += 'data modify storage arr_math:in var2 set from storage arr_math:main out\n'
@@ -186,6 +186,7 @@ for layer, node in enumerate(graph.node):
 for i,layer_output in enumerate(outputs):
   with open('nnoutput_{i}.mcfunction'.format(i=i), 'w') as f:
     f.write(layer_output)
+    f.write('schedule function {function} 1t'.format(function='nn_0001:nnoutput_{j}'.format(j=i+1)))
 
 # generate init file
 output = 'function arr_math:setup\n'

@@ -39,3 +39,4 @@ data modify storage arr_math:in var1 set value {dec:17,num:[3,0,0,0,5,8,3,1,2,7,
 data modify storage arr_math:in var2 set from storage nn_0001:nn_eval l6_9
 function arr_math:call/add
 data modify storage nn_0001:nn_eval l7_9 set from storage arr_math:main out
+schedule function nn_0001:nnoutput_16 1t
