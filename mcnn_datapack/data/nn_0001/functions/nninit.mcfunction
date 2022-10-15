@@ -1,6 +1,6 @@
 function arr_math:setup
 gamerule maxCommandChainLength 2147483647
-scoreboard players set mdp= arr_main.main 20
+scoreboard players set mdp= arr_main.main 10
 data modify storage nn_0001:nn_eval l0_0_0 set value {dec:0,num:[0],pol:-1,base:10}
 data modify storage nn_0001:nn_eval l0_0_1 set value {dec:0,num:[0],pol:-1,base:10}
 data modify storage nn_0001:nn_eval l0_0_2 set value {dec:0,num:[0],pol:-1,base:10}

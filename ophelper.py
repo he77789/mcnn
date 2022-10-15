@@ -5,7 +5,7 @@ def numConvert(x):
   x = float(abs(x))
   dec = 0
   while not x.is_integer():
-    if dec >= 32: # truncate if it's over 32 decimal places
+    if dec >= 16: # truncate if it's over 16 decimal places
       break
     dec += 1
     x *= 10
@@ -89,7 +89,7 @@ def opExp(inval,outval):
 
 if __name__ == '__main__':
   print('Running self tests:')
-  print('numConvert(3.14159265358979):' + numConvert(3.14159265358979))
+  print('numConvert(3.141592653589793238):' + numConvert(3.141592653589793238))
   print('numConvert(-123.456789):' + numConvert(-123.456789))
   print('numConvert(-0):' + numConvert(-0))
   print('numConvert(69**69):' + numConvert(69**69))

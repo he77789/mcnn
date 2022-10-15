@@ -20,6 +20,7 @@ weights = weights[:-2]
 weight_order = [2,4,3] # note: they will be multiplied by -1
 
 default_layer = lambda l:ophelper.opElementwise(last_shape, 'data modify storage nn_0001:nn_eval l{cn}_%d set from storage nn_0001:nn_eval l{pn}_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_0001:nn_eval l{cn}_%d_%d set from storage nn_0001:nn_eval l{pn}_%d_%d\n'.format(cn=l,pn=l-1), 'data modify storage nn_0001:nn_eval l{cn}_%d_%d_%d set from storage nn_0001:nn_eval l{pn}_%d_%d_%d\n'.format(cn=l,pn=l-1)) # copy
+~
 
 keys = ['image']
 unweighted_layers = 0
@@ -51,10 +52,10 @@ for layer, node in enumerate(graph.node):
   match node.op_type:
     case 'Reshape':
       if flatten:
-        output += ophelper.opFlatten(last_shape, 'data modify storage nn_0001:nn_eval l{cn}_%d set from storage l{pn}_%d_%d_%d nn_0001:nn_eval\n'.format(cn=layer,pn=layer-1))
+        output += ophelper.opFlatten(last_shape, 'data modify storage nn_0001:nn_eval l{cn}_%d set from storage nn_0001:nn_eval l{pn}_%d_%d_%d \n'.format(cn=layer,pn=layer-1))
         last_shape = (np.prod(last_shape),)
     
-    # very heavy layer: it will split itself into one function per filter
+    # very heavy layer: it will split itself into one function per filter per row of output pixels
     case 'Conv':
       match len(last_shape):
         case 2:
@@ -85,6 +86,8 @@ for layer, node in enumerate(graph.node):
                 output += 'data modify storage arr_math:in var2 set from storage nn_0001:nn_eval l{cn}_{f}_{x}_{y}\n'.format(cn=layer,x=ic,y=jc,f=fc)
                 output += 'function arr_math:call/add\n'
                 output += 'data modify storage nn_0001:nn_eval l{cn}_{f}_{x}_{y} set from storage arr_math:main out\n'.format(cn=layer,x=ic,y=jc,f=fc)
+              outputs.append(output)
+              output = "# generated with he77789's mcnn tool\n"
             outputs.append(output)
             output = "# generated with he77789's mcnn tool\n"
 
@@ -130,7 +133,8 @@ for layer, node in enumerate(graph.node):
           
     case 'Transpose': # convert from N,C,H,W to N,H,W,C
       output += ophelper.opTranspose(last_shape,'data modify storage nn_0001:nn_eval l{cn}_%d_%d_%d set from storage nn_0001:nn_eval l{pn}_%d_%d_%d\n'.format(cn=layer,pn=layer-1))
-      
+    
+    # very heavy layer: it will split itself into one function per output
     case 'MatMul': # 1D input
       output_length = len(current_weights[0][0])
       for i in range(output_length):
@@ -143,6 +147,9 @@ for layer, node in enumerate(graph.node):
           output += 'data modify storage arr_math:in var2 set from storage arr_math:main out\n'
           output += 'function arr_math:call/add\n'
           output += 'data modify storage nn_0001:nn_eval l{cn}_{y} set from storage arr_math:main out\n'.format(cn=layer,y=i)
+        outputs.append(output)
+        output = "# generated with he77789's mcnn tool\n"
+
       last_shape = (output_length,)
           
     case 'Add':
@@ -186,12 +193,13 @@ for layer, node in enumerate(graph.node):
 for i,layer_output in enumerate(outputs):
   with open('nnoutput_{i}.mcfunction'.format(i=i), 'w') as f:
     f.write(layer_output)
-    f.write('schedule function {function} 1t'.format(function='nn_0001:nnoutput_{j}'.format(j=i+1)))
+    f.write('schedule function {function} 1t\n'.format(function='nn_0001:nnoutput_{j}'.format(j=i+1)))
+    f.write('say {function} has finished running\n'.format(function='nn_0001:nnoutput_{i}'.format(i=i)))
 
 # generate init file
 output = 'function arr_math:setup\n'
 output += 'gamerule maxCommandChainLength 2147483647\n'
-output += 'scoreboard players set mdp= arr_main.main 20\n'
+output += 'scoreboard players set mdp= arr_main.main 10\n'
 for i,j in np.ndindex(input_shape):
   output += 'data modify storage nn_0001:nn_eval l0_{x}_{y} set value {{dec:0,num:[0],pol:-1,base:10}}\n'.format(x=i,y=j)
 
