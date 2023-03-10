@@ -161,7 +161,7 @@ with open('nnoutput.mcfunction', 'w') as f:
 # generate init file
 output = 'scoreboard objectives add nn_eval dummy "NN internals"\ngamerule maxCommandChainLength 2147483647\n\n'
 for i,j in np.ndindex(input_shape):
-  output += 'scoreboard players set #l0_{x}_{y} nn_eval 0\n'.format(x=i,y=j)
+  output += 'scoreboard players set #l0_{x}_{y} nn_eval 26843545\n'.format(x=i,y=j) # 0.1 for whole image for testing
 
 with open('nninit.mcfunction', 'w') as f:
   f.write(output)
