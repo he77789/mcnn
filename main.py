@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Q13.18 format is used in the output
+Q15.16 format is used in the output
 """
-FPSF = 2**18 # fixed point scale factor
-sqrtFPSF = 2**9 # useful in multiplication and division
+FPSF = 2**16 # fixed point scale factor
+sqrtFPSF = 2**8 # useful in multiplication and division
 
 import warnings
 import numpy as np
@@ -162,9 +162,9 @@ output = 'scoreboard objectives add nn_eval dummy "NN internals"\ngamerule maxCo
 output += "scoreboard players set #sqrtFPSF nn_eval %d\n" % sqrtFPSF
 # for exp
 output += 'scoreboard players set #TWO nn_eval 2\n'
-output = 'scoreboard players set exp_test nn_eval 110282\n' # 0.42069 for testing
+output += 'scoreboard players set exp_test nn_eval 45220\n' # 0.69 for testing
 for i,j in np.ndindex(input_shape):
-  output += 'scoreboard players set #l0_{x}_{y} nn_eval 26214\n'.format(x=i,y=j) # 0.1 for testing
+  output += 'scoreboard players set #l0_{x}_{y} nn_eval 6554\n'.format(x=i,y=j) # 0.1 for testing
 
 with open('nninit.mcfunction', 'w') as f:
   f.write(output)

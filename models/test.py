@@ -20,5 +20,5 @@ outputs = [x.name for x in ort_session.get_outputs()]
 ort_outs = ort_session.run(outputs, {'image': np.full((1,28,28,1), 0.1, np.float32)} )
 ort_outs = OrderedDict(zip(outputs, ort_outs))
 for key,element in ort_outs.items():
-  ort_outs[key] = (element * 2**18).astype(np.int)
+  ort_outs[key] = (element * 2**16).astype(np.int)
 print(ort_outs)
