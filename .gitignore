@@ -1,3 +1,5 @@
 __pycache__/
 *.py[cod]
 *.$py.class
+build/*
+mcnn_datapack/data/nn_0001/functions/*

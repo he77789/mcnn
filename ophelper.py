@@ -1,4 +1,54 @@
 import numpy as np
+import struct
+
+def singlecopy(source, dest, objs = "nn_eval", objd = "nn_eval", sbbias = 0, dbbias = 0):
+  output = ''
+  for b in range(3):
+    output += "scoreboard players operation %s%d %s = %s%d %s\n" % (dest, b + dbbias, objd, source, b + sbbias, objs)
+  return output
+
+def cond_singlecopy(source, dest, cond, objs = "nn_eval", objd = "nn_eval", sbbias = 0, dbbias = 0):
+  output = ''
+  for b in range(3):
+    output += "execute %s run scoreboard players operation %s%d %s = %s%d %s\n" % (cond, dest, b + dbbias, objd, source, b + sbbias, objs)
+  return output
+
+# copy
+def default_layer(shape, l):
+  output = ''
+  match len(shape):
+    case 1:
+      for i in range(shape[0]):
+        varc = "#l%d_%d-" % (l, i)
+        varp = "#l%d_%d-" % (l-1, i)
+        output += singlecopy(varp, varc)
+    case 2:
+      for i,j in np.ndindex(shape):
+        varc = "#l%d_%d_%d-" % (l, i, j)
+        varp = "#l%d_%d_%d-" % (l-1, i, j)
+        output += singlecopy(varp, varc)
+    case 3:
+      for i,j,k in np.ndindex(shape):
+        varc = "#l%d_%d_%d_%d-" % (l, i, j, k)
+        varp = "#l%d_%d_%d_%d-" % (l-1, i, j, k)
+        output += singlecopy(varp, varc)
+  return output
+
+def decomposefp(x):
+  # packing the value into a struct and unpacking it as an int turns it into the bitwise representation
+  s = struct.pack(">f", x)
+  intbits = struct.unpack(">l", s)[0]
+  sign = (intbits >> 31) & 0b1
+  exponent = ((intbits >> 23) & 0b11111111) - 127 # the exponent is signed in hmmm
+  mantissa = (intbits) & 0b11111111111111111111111 # bottom 23 bits
+  return (sign, exponent, mantissa)
+
+def setconst(name, decomposed, obj = "nn_eval", bbias = 0):
+  output = ''
+  for b in range(3):
+    output += 'scoreboard players set %s%d %s %d\n' % (name, b + bbias, obj, decomposed[b])
+  return output
+
 def opElementwise(shape, out1d=None, out2d=None, out3d=None):
   output = ''
   match len(shape):
@@ -15,64 +65,30 @@ def opElementwise(shape, out1d=None, out2d=None, out3d=None):
 
 def opFlatten(shape, out):
   output = ''
-  match len(shape):
-    case 1:
-      for i in range(shape[0]):
-        output += out % (i, i) # basically copy
-    case 2:
-      for i,j in np.ndindex(shape):
-        output += out % (j + i * shape[0], i, j)
-    case 3:
-      for i,j,k in np.ndindex(shape):
-        output += out % (k + j * shape[0] + i * shape[0] * shape[1], i, j, k)
+  for b in range(3):
+    match len(shape):
+      case 1:
+        for i in range(shape[0]):
+          output += out % (i, b, i, b) # basically copy
+      case 2:
+        for i,j in np.ndindex(shape):
+          output += out % (j + i * shape[0], b, i, j, b)
+      case 3:
+        for i,j,k in np.ndindex(shape):
+          output += out % (k + j * shape[0] + i * shape[0] * shape[1], b, i, j, k, b)
   return output
 
 def opTranspose(shape, out):
   output = ''
-  for i,j,k in np.ndindex(shape):
-    output += out % (j, k, i, i, j, k) # the order is (dest, source). I made this mistake and spent 2 hours on it, don't be like me
+  for b in range(3):
+    for i,j,k in np.ndindex(shape):
+      output += out % (j, k, i, b, i, j, k, b) # the order is (dest, source). I made this mistake and spent 2 hours on it, don't be like me
   return output
 
 def opExp(inval,outval):
-  """
-  computed with [2/1] pade approximants
-  y = (3+2x+x*x/2))/(3-x)
-  """
-  
-  # divisor
-  output = 'scoreboard players set #exp_temp_0 nn_eval 196608\n' # FPSF * 3
-  output += 'scoreboard players operation #exp_temp_0 nn_eval -= {inval} nn_eval\n'.format(inval=inval)
-  
-  # diviend
-  output += 'scoreboard players set {outval} nn_eval 196608\n'.format(outval=outval) # again, FPSF * 3
-  # 2x term of diviend
-  output += 'scoreboard players operation #exp_temp_1 nn_eval = {inval} nn_eval\n'.format(inval=inval)
-  output += 'scoreboard players operation #exp_temp_1 nn_eval *= #TWO nn_eval\n'
-  output += 'scoreboard players operation {outval} nn_eval += #exp_temp_1 nn_eval\n'.format(outval=outval)
-  # 0.5x^2 term of diviend
-  output += 'scoreboard players operation #exp_temp_2 nn_eval = {inval} nn_eval\n'.format(inval=inval)
-  output += 'scoreboard players operation #exp_temp_2 nn_eval /= #TWO nn_eval\n' # /2 interlaced to prevent overflow in intermediate step
-  output += 'scoreboard players operation #exp_temp_2 nn_eval /= #sqrtFPSF nn_eval\n'
-  output += 'scoreboard players operation #exp_temp_2 nn_eval *= {inval} nn_eval\n'.format(inval=inval)
-  output += 'scoreboard players operation #exp_temp_2 nn_eval /= #sqrtFPSF nn_eval\n'
-  output += 'scoreboard players operation {outval} nn_eval += #exp_temp_2 nn_eval\n'.format(outval=outval)
-  
-  # putting it all together
-  output += 'scoreboard players operation #exp_temp_0 nn_eval /= #sqrtFPSF nn_eval\n'
-  output += 'scoreboard players operation {outval} nn_eval *= #sqrtFPSF nn_eval\n'.format(outval=outval)
-  output += 'scoreboard players operation {outval} nn_eval /= #exp_temp_0 nn_eval\n'.format(outval=outval)
-  
-  """
-  computed with [1/1] pade approximants; less accurate but faster
-  y = (2+x)/(2-x)
-  
-  output = 'scoreboard players set {outval} nn_eval 131072\n'.format(outval=outval) # FPSF * 2
-  output += 'scoreboard players operation {outval} nn_eval += {inval} nn_eval\n'.format(inval=inval,outval=outval)
-  output += 'scoreboard players set #exp_temp_0 nn_eval 131072\n'
-  output += 'scoreboard players operation #exp_temp_0 nn_eval -= {inval} nn_eval\n'.format(inval=inval)
-  output += 'scoreboard players operation {outval} nn_eval *= #sqrtFPSF nn_eval\n'.format(outval=outval)
-  output += 'scoreboard players operation #exp_temp_0 nn_eval /= #sqrtFPSF nn_eval\n'
-  output += 'scoreboard players operation {outval} nn_eval /= #exp_temp_0 nn_eval\n'.format(outval=outval)
-  """
+  output = ''
+  output += singlecopy(inval, "P", objd = "io")
+  output += "function extended_float:32/exponential/main\n"
+  output += singlecopy("R", outval, objs = "io")
   
   return output
