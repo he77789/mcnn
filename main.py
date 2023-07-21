@@ -32,9 +32,11 @@ Path("./build").mkdir(exist_ok = True)
 keys = ['image']
 unweighted_layers = 0
 last_shape = input_shape
+
+outputlist = []
+
 for layer, node in enumerate(graph.node):
   output = ''
-  print(last_shape)
   weight_count = 0
   current_weights = []
   
@@ -178,10 +180,16 @@ for layer, node in enumerate(graph.node):
     
     case _:
       raise NotImplementedError(str(node.op_type) + ' is currently not supported, skipping layer')
-  output += '\nschedule function nn_0001:nnoutput_%03d 1t\n' % (layer + 1) # spread layers over multiple ticks to not lock the server up
+  outputlist.append(output)
 
-  with open('build/nnoutput_%03d.mcfunction' % layer, 'w') as f:
-    f.write(output)
+layercount = len(outputlist)
+for l,o in enumerate(outputlist):
+  if (l != layercount - 1): # not the last layer
+    ofinal = o +'\nschedule function nn_0001:nnoutput_%03d 1t\n' % (layer + 1) # spread layers over multiple ticks to not lock the server up
+  else: # last layer
+    ofinal = o + '\nfunction #nn_0001:finish_callback\n'
+  with open('build/nnoutput_%03d.mcfunction' % l, 'w') as f:
+    f.write(ofinal)
 
 # generate init file
 output = 'scoreboard objectives add nn_eval dummy "NN internals"\ngamerule maxCommandChainLength 2147483647\n\n'
