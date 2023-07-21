@@ -71,11 +71,11 @@ def opFlatten(shape, out):
         for i in range(shape[0]):
           output += out % (i, b, i, b) # basically copy
       case 2:
-        for i,j in np.ndindex(shape):
-          output += out % (j + i * shape[0], b, i, j, b)
+        for s,(i,j) in enumerate(np.ndindex(shape)):
+          output += out % (s, b, i, j, b)
       case 3:
-        for i,j,k in np.ndindex(shape):
-          output += out % (k + j * shape[0] + i * shape[0] * shape[1], b, i, j, k, b)
+        for s,(i,j,k) in enumerate(np.ndindex(shape)):
+          output += out % (s, b, i, j, k, b)
   return output
 
 def opTranspose(shape, out):

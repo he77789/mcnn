@@ -55,6 +55,7 @@ for layer, node in enumerate(graph.node):
       if flatten:
         output += ophelper.opFlatten(last_shape, 'scoreboard players operation #l{cn}_%d-%d nn_eval = #l{pn}_%d_%d_%d-%d nn_eval\n'.format(cn=layer,pn=layer-1))
         last_shape = (np.prod(last_shape),)
+    
     case 'Conv': # assumed 2D for now, who uses Conv1D for images anyways
       attributes = list(node.attribute)
       dilations = list(attributes[0].ints)
@@ -125,6 +126,7 @@ for layer, node in enumerate(graph.node):
     
     case 'Transpose': # convert from N,C,H,W to N,H,W,C
       output += ophelper.opTranspose(last_shape,'scoreboard players operation #l{cn}_%d_%d_%d-%d nn_eval = #l{pn}_%d_%d_%d-%d nn_eval\n'.format(cn=layer,pn=layer-1))
+      last_shape = (last_shape[1], last_shape[2], last_shape[0])
     
     case 'MatMul': # 1D input
       output_length = len(current_weights[0][0])
@@ -176,7 +178,7 @@ for layer, node in enumerate(graph.node):
     
     case _:
       raise NotImplementedError(str(node.op_type) + ' is currently not supported, skipping layer')
-  output += '\nfunction nn_0001:nnoutput_%03d\n' % (layer + 1)
+  output += '\nschedule function nn_0001:nnoutput_%03d 1t\n' % (layer + 1) # spread layers over multiple ticks to not lock the server up
 
   with open('build/nnoutput_%03d.mcfunction' % layer, 'w') as f:
     f.write(output)
@@ -187,11 +189,16 @@ output += "function main:setup\n"
 output += "function float:setup\n"
 output += "function extended_float:setup\n"
 
+with open('build/nninit.mcfunction', 'w') as f:
+  f.write(output)
+
+output = ''
+
 for i,j in np.ndindex(input_shape):
-  # set to a uniform grey of 0.1 by default for testing
+  # set to a uniform grey of 0.1 for testing
   output += 'scoreboard players set #l0_{x}_{y}-0 nn_eval 0\n'.format(x=i,y=j)
   output += 'scoreboard players set #l0_{x}_{y}-1 nn_eval -4\n'.format(x=i,y=j)
   output += 'scoreboard players set #l0_{x}_{y}-2 nn_eval 5033165\n'.format(x=i,y=j)
 
-with open('build/nninit.mcfunction', 'w') as f:
+with open('build/nn_test_img.mcfunction', 'w') as f:
   f.write(output)
